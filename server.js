@@ -4,24 +4,21 @@ const cors = require('cors')
 
 const app = express()
 
-// ✅ CORS (LOCK DOWN LATER)
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
-}))
-
+app.use(cors())
 app.use(express.json())
+
+// 🔥 CHANGE THIS TO YOUR REAL FRONTEND DOMAIN IF NEEDED
+const DOMAIN = "https://dpb-backend-dfc6.onrender.com"
 
 // ✅ Prevent reused sessions
 const usedSessions = new Set()
 
-// ✅ Health check (Render uses this)
+// ✅ Health check
 app.get('/', (req, res) => {
   res.status(200).send('Backend working ✅')
 })
 
-// ✅ CREATE STRIPE SESSION
+// ✅ CREATE STRIPE SESSION (FIXED)
 app.post('/create-checkout-session', async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
@@ -29,12 +26,18 @@ app.post('/create-checkout-session', async (req, res) => {
       mode: 'payment',
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID,
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Photo Booth Access'
+            },
+            unit_amount: 500 // $5
+          },
           quantity: 1
         }
       ],
-      success_url: `${process.env.DOMAIN}/camera.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.DOMAIN}`
+      success_url: `${DOMAIN}/camera.html?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${DOMAIN}`
     })
 
     res.json({ url: session.url })
@@ -72,6 +75,6 @@ app.get('/verify-session', async (req, res) => {
   }
 })
 
-// ✅ PORT FOR RENDER
+// ✅ PORT
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => console.log(`Server running on ${PORT}`))
