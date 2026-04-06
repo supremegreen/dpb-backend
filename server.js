@@ -7,7 +7,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-// 🔥 CHANGE THIS TO YOUR REAL FRONTEND DOMAIN IF NEEDED
+// 🔥 Your frontend domain (used for redirects)
 const DOMAIN = "https://dpb-backend-dfc6.onrender.com"
 
 // ✅ Prevent reused sessions
@@ -18,24 +18,21 @@ app.get('/', (req, res) => {
   res.status(200).send('Backend working ✅')
 })
 
-// ✅ CREATE STRIPE SESSION (FIXED)
+// ✅ CREATE STRIPE SESSION (FIXED & CLEAN)
 app.post('/create-checkout-session', async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
+
+      // ✅ CORRECT STRUCTURE
       line_items: [
         {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Photo Booth Access'
-            },
-            unit_amount: 500 // $5
-          },
+          price: process.env.STRIPE_PRICE_ID,
           quantity: 1
         }
       ],
+
       success_url: `${DOMAIN}/camera.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${DOMAIN}`
     })
@@ -43,8 +40,8 @@ app.post('/create-checkout-session', async (req, res) => {
     res.json({ url: session.url })
 
   } catch (err) {
-    console.error('STRIPE ERROR:', err)
-    res.status(500).json({ error: 'Stripe failed' })
+    console.error('🔥 STRIPE ERROR FULL:', err)
+    res.status(500).json({ error: err.message })
   }
 })
 
