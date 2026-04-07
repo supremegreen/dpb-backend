@@ -7,8 +7,8 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-// 🔥 Your frontend domain (used for redirects)
-const DOMAIN = "https://dpb-backend-dfc6.onrender.com"
+// 🔥 USE YOUR REAL FRONTEND DOMAIN
+const DOMAIN = "https://dpbstudio.com"
 
 // ✅ Prevent reused sessions
 const usedSessions = new Set()
@@ -18,14 +18,13 @@ app.get('/', (req, res) => {
   res.status(200).send('Backend working ✅')
 })
 
-// ✅ CREATE STRIPE SESSION (FIXED & CLEAN)
+// ✅ CREATE STRIPE SESSION
 app.post('/create-checkout-session', async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
 
-      // ✅ CORRECT STRUCTURE
       line_items: [
         {
           price: process.env.STRIPE_PRICE_ID,
@@ -33,6 +32,7 @@ app.post('/create-checkout-session', async (req, res) => {
         }
       ],
 
+      // ✅ REDIRECT TO YOUR FRONTEND (NOT BACKEND)
       success_url: `${DOMAIN}/camera.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${DOMAIN}`
     })
