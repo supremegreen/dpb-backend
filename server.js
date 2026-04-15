@@ -53,7 +53,7 @@ app.post("/create-checkout-session", async (req, res) => {
 })
 
 /* ================================
-   🔥 SUCCESS HANDLER (CRITICAL)
+   🔥 SUCCESS HANDLER
 ================================ */
 
 app.get("/success", async (req, res) => {
@@ -66,11 +66,17 @@ app.get("/success", async (req, res) => {
       return res.redirect("https://dpbstudio.com/index.html")
     }
 
-    // 🔐 Generate ONE-TIME token
+    // 🔐 Generate token
     const token = generateToken()
 
-    // ⏳ Store with expiration (5 minutes)
-    validTokens.set(token, Date.now() + 5 * 60 * 1000)
+    // ⏳ Store expiration (5 minutes)
+    const expiresAt = Date.now() + 5 * 60 * 1000
+    validTokens.set(token, expiresAt)
+
+    // 🔥 AUTO CLEANUP AFTER EXPIRATION
+    setTimeout(() => {
+      validTokens.delete(token)
+    }, 5 * 60 * 1000)
 
     // 🚀 Redirect to camera with token
     res.redirect(`https://dpbstudio.com/camera.html?token=${token}`)
@@ -81,7 +87,7 @@ app.get("/success", async (req, res) => {
 })
 
 /* ================================
-   🔐 VERIFY TOKEN (ONE-TIME USE)
+   🔐 VERIFY TOKEN (SESSION SAFE)
 ================================ */
 
 app.get("/verify-token", (req, res) => {
@@ -99,9 +105,7 @@ app.get("/verify-token", (req, res) => {
     return res.json({ valid: false })
   }
 
-  // 🔥 ONE-TIME USE → DELETE AFTER USE
-  validTokens.delete(token)
-
+  // ✅ DO NOT DELETE HERE (IMPORTANT FIX)
   res.json({ valid: true })
 })
 
