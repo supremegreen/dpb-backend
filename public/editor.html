@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>Editor</title>
+
+    <style>
+      body {
+        margin: 0;
+        background: black;
+        overflow: hidden;
+        font-family: Arial;
+      }
+      canvas {
+        position: absolute;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .editorBox {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 16px;
+        border-radius: 14px;
+        background: transparent;
+      }
+
+      .control {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      input[type='range'] {
+        width: 100%;
+      }
+
+      .label {
+        font-size: 12px;
+        color: white;
+        margin-top: 4px;
+        opacity: 0.9;
+      }
+
+      #saveEdit {
+        padding: 14px;
+        background: #00c853;
+        border: none;
+        border-radius: 12px;
+        color: white;
+        font-size: 16px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <div class="editorBox">
+      <div class="control">
+        <input type="range" id="brightness" min="0" max="200" value="100" />
+        <div class="label">Brightness</div>
+      </div>
+
+      <div class="control">
+        <input type="range" id="contrast" min="0" max="200" value="100" />
+        <div class="label">Contrast</div>
+      </div>
+
+      <div class="control">
+        <input type="range" id="saturation" min="0" max="200" value="100" />
+        <div class="label">Saturation</div>
+      </div>
+
+      <button id="saveEdit">Save Changes</button>
+    </div>
+
+    <script>
+      /* ================================
+         🔐 TOKEN SYNC (ADDED ONLY)
+      ================================= */
+      const params = new URLSearchParams(window.location.search)
+      let token = params.get('token')
+
+      if (token) {
+        sessionStorage.setItem('active_token', token)
+      } else {
+        token = sessionStorage.getItem('active_token')
+      }
+
+      if (!token) {
+        window.location.href = 'index.html'
+      }
+
+      let img = new Image()
+      let hasImage = false
+      let originalPixels = null
+
+      let brightness = 100
+      let contrast = 100
+      let saturation = 100
+
+      const canvas = document.getElementById('canvas')
+      const ctx = canvas.getContext('2d')
+
+      const brightnessSlider = document.getElementById('brightness')
+      const contrastSlider = document.getElementById('contrast')
+      const saturationSlider = document.getElementById('saturation')
+      const saveBtn = document.getElementById('saveEdit')
+
+      function setCanvasSize() {
+        canvas.width = window.innerWidth
+        canvas.height = window.innerHeight
+      }
+      setCanvasSize()
+
+      const storedPhoto = localStorage.getItem('photo')
+
+      if (storedPhoto && storedPhoto.startsWith('data:image')) {
+        img.onload = () => {
+          hasImage = true
+
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+          originalPixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        }
+
+        img.src = storedPhoto
+      }
+
+      function applyEdits() {
+        if (!hasImage || !originalPixels) return
+
+        if (brightness == 100 && contrast == 100 && saturation == 100) {
+          ctx.putImageData(originalPixels, 0, 0)
+          return
+        }
+
+        let imageData = new ImageData(
+          new Uint8ClampedArray(originalPixels.data),
+          originalPixels.width,
+          originalPixels.height
+        )
+
+        let data = imageData.data
+
+        let b = brightness / 100
+        let s = saturation / 100
+        let c = contrast / 100
+
+        for (let i = 0; i < data.length; i += 4) {
+          let r = data[i]
+          let g = data[i + 1]
+          let bVal = data[i + 2]
+
+          r *= b
+          g *= b
+          bVal *= b
+
+          r = (r - 128) * c + 128
+          g = (g - 128) * c + 128
+          bVal = (bVal - 128) * c + 128
+
+          let gray = 0.3 * r + 0.59 * g + 0.11 * bVal
+          r = gray + (r - gray) * s
+          g = gray + (g - gray) * s
+          bVal = gray + (bVal - gray) * s
+
+          data[i] = r
+          data[i + 1] = g
+          data[i + 2] = bVal
+        }
+
+        ctx.putImageData(imageData, 0, 0)
+      }
+
+      brightnessSlider.oninput = e => {
+        brightness = e.target.value
+        applyEdits()
+      }
+
+      contrastSlider.oninput = e => {
+        contrast = e.target.value
+        applyEdits()
+      }
+
+      saturationSlider.oninput = e => {
+        saturation = e.target.value
+        applyEdits()
+      }
+
+      saveBtn.onclick = () => {
+        if (!hasImage) return
+
+        const editedPhoto = canvas.toDataURL('image/png')
+        localStorage.setItem('photo', editedPhoto)
+
+        // 🔥 TOKEN PASSED TO PREVIEW
+        window.location.href = `preview.html?token=${token}`
+      }
+
+      window.addEventListener('resize', () => {
+        setCanvasSize()
+        if (hasImage) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          originalPixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        }
+      })
+    </script>
+  </body>
+</html>

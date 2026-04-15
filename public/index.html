@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+
+    <title>Photo Booth Homepage</title>
+
+    <style>
+      body {
+        margin: 0;
+        background: black;
+        font-family: Arial;
+        overflow: hidden;
+        height: 100vh;
+        color: white;
+      }
+
+      .screen {
+        position: absolute;
+        width: 100vw;
+        height: 100vh;
+        display: none;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+
+      .active {
+        display: flex;
+      }
+
+      #logo {
+        width: 0px;
+        margin-bottom: 25px;
+      }
+
+      #logo2 {
+        width: 380px;
+        margin-bottom: -95px;
+      }
+
+      #takePhoto {
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        cursor: pointer;
+        transition: transform 0.1s ease, filter 0.1s ease;
+        animation: glowPulse 2s infinite;
+
+        outline: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      #takePhoto:focus {
+        outline: none;
+      }
+
+      #takePhoto img {
+        width: 280px;
+        margin-top: 200px;
+        display: block;
+        pointer-events: none;
+      }
+
+      #takePhoto:hover {
+        transform: scale(1.05);
+      }
+
+      #takePhoto:active {
+        transform: scale(0.9) translateY(4px);
+        filter: brightness(0.8);
+        animation: none;
+      }
+
+      @keyframes glowPulse {
+        0% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 0px rgba(0, 255, 150, 0));
+        }
+        50% {
+          transform: scale(1.04);
+          filter: drop-shadow(0 0 18px rgba(68, 176, 252, 0.8));
+        }
+        100% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 0px rgba(0, 255, 150, 0));
+        }
+      }
+
+      #takePhoto.released {
+        animation: bounce 0.18s ease;
+      }
+
+      @keyframes bounce {
+        0% {
+          transform: scale(0.9) translateY(4px);
+        }
+        50% {
+          transform: scale(1.06);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- HOME SCREEN -->
+    <div id="home" class="screen active">
+      <img id="logo" src="./images/FinalOT.png" />
+      <img id="logo2" src="./images/DPB logo.png" />
+
+      <button id="takePhoto">
+        <img src="./images/IMG_1680.png" />
+      </button>
+    </div>
+
+    <script>
+      const btn = document.getElementById('takePhoto')
+
+      // KEEP BUTTON PRESS ANIMATION (UNCHANGED)
+      btn.addEventListener('touchend', () => {
+        btn.classList.add('released')
+        setTimeout(() => btn.classList.remove('released'), 180)
+      })
+
+      btn.addEventListener('mouseup', () => {
+        btn.classList.add('released')
+        setTimeout(() => btn.classList.remove('released'), 180)
+      })
+
+      // 🔥 DEBUG + BACKEND CHECKOUT FLOW
+      btn.onclick = async () => {
+        console.log('CLICKED - CALLING BACKEND')
+
+        try {
+          const res = await fetch(
+            'https://dpb-backend-dfc6.onrender.com/create-checkout-session',
+            {
+              method: 'POST'
+            }
+          )
+
+          const data = await res.json()
+
+          console.log('SESSION URL:', data.url)
+
+          window.location.href = data.url
+        } catch (err) {
+          console.error(err)
+          alert('Payment failed. Try again.')
+        }
+      }
+    </script>
+  </body>
+</html>

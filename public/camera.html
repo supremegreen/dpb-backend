@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>Camera</title>
+
+    <style>
+      body {
+        margin: 0;
+        background: black;
+        overflow: hidden;
+      }
+
+      video,
+      canvas {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      #captureBtn {
+        position: absolute;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 85px;
+        height: 85px;
+        border-radius: 50%;
+        background: red;
+        border: 5px solid #bbb;
+        z-index: 10;
+      }
+
+      #flipBtn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 55px;
+        height: 55px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        font-size: 22px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10;
+      }
+
+      .previewBtn {
+        position: absolute;
+        top: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 10;
+      }
+
+      #retake {
+        left: 20px;
+      }
+      #approve {
+        right: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="previewCanvas" style="display: none"></canvas>
+
+    <button id="captureBtn"></button>
+    <div id="flipBtn">🔄</div>
+
+    <div id="retake" class="previewBtn" style="display: none">❌</div>
+    <div id="approve" class="previewBtn" style="display: none">✅</div>
+
+    <script>
+      /* ================================
+         🔐 TOKEN PROTECTION (RUN FIRST)
+      ================================= */
+
+      async function verifyAccess() {
+        const params = new URLSearchParams(window.location.search)
+        const token = params.get('token')
+
+        if (!token) {
+          window.location.href = 'index.html'
+          return
+        }
+
+        try {
+          const res = await fetch(
+            `https://dpb-backend-dfc6.onrender.com/verify-token?token=${token}`
+          )
+
+          const data = await res.json()
+
+          if (!data.valid) {
+            window.location.href = 'index.html'
+          }
+        } catch {
+          window.location.href = 'index.html'
+        }
+      }
+
+      /* ================================
+         CAMERA LOGIC (UNCHANGED)
+      ================================= */
+
+      let stream
+      let currentFacingMode = 'environment'
+      let photoBlob
+
+      const video = document.getElementById('video')
+      const canvas = document.getElementById('previewCanvas')
+      const ctx = canvas.getContext('2d')
+
+      const captureBtn = document.getElementById('captureBtn')
+      const flipBtn = document.getElementById('flipBtn')
+      const retakeBtn = document.getElementById('retake')
+      const approveBtn = document.getElementById('approve')
+
+      async function startCamera() {
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop())
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: currentFacingMode },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            aspectRatio: { ideal: 16 / 9 }
+          }
+        })
+
+        video.srcObject = stream
+
+        video.style.transform =
+          currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)'
+      }
+
+      flipBtn.onclick = () => {
+        currentFacingMode =
+          currentFacingMode === 'user' ? 'environment' : 'user'
+        startCamera()
+      }
+
+      captureBtn.onclick = () => {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+
+        if (currentFacingMode === 'user') {
+          ctx.translate(canvas.width, 0)
+          ctx.scale(-1, 1)
+        }
+
+        ctx.drawImage(video, 0, 0)
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+
+        canvas.toBlob(
+          blob => {
+            photoBlob = blob
+
+            video.style.display = 'none'
+            canvas.style.display = 'block'
+
+            captureBtn.style.display = 'none'
+            flipBtn.style.display = 'none'
+
+            retakeBtn.style.display = 'flex'
+            approveBtn.style.display = 'flex'
+          },
+          'image/jpeg',
+          1.0
+        )
+      }
+
+      retakeBtn.onclick = () => {
+        video.style.display = 'block'
+        canvas.style.display = 'none'
+
+        captureBtn.style.display = 'block'
+        flipBtn.style.display = 'flex'
+
+        retakeBtn.style.display = 'none'
+        approveBtn.style.display = 'none'
+      }
+
+      approveBtn.onclick = () => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          localStorage.setItem('photo', reader.result)
+          window.location.href = 'editor.html'
+        }
+        reader.readAsDataURL(photoBlob)
+      }
+
+      /* ================================
+         🔥 INIT FLOW
+      ================================= */
+
+      window.onload = async () => {
+        await verifyAccess() // 🔐 MUST PASS FIRST
+        startCamera()
+      }
+    </script>
+  </body>
+</html>

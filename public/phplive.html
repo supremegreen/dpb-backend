@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Live Photo Wall</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: black;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      /* 🔥 LEFT PROMO */
+      .leftAd {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 30%;
+        height: 100%;
+        z-index: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      /* 🔥 RIGHT PROMO */
+      .rightAd {
+        position: fixed;
+        right: 0;
+        top: 0;
+        width: 30%;
+        height: 100%;
+        z-index: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      /* 🔥 PROMO IMAGE STACK */
+      .adStack {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .promoImg {
+        position: absolute;
+        width: 80%;
+        max-width: 300px;
+        height: auto;
+        object-fit: contain;
+        margin: 0 15px;
+
+        opacity: 0;
+        transition: opacity 1s ease-in-out;
+      }
+
+      .promoImg.active {
+        opacity: 1;
+      }
+
+      /* 🔥 CENTER WALL */
+      .wall {
+        position: absolute;
+        left: 20%;
+        width: 60%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 2;
+      }
+
+      /* 🔥 SCROLL TRACK */
+      .mediaContainer {
+        position: absolute;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+
+        animation: scrollVertical 340s linear infinite;
+      }
+
+      .mediaItem {
+        margin: 20px 0;
+      }
+
+      img,
+      video {
+        max-width: 90%;
+        max-height: 80vh;
+        border-radius: 20px;
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+      }
+
+      @keyframes scrollVertical {
+        0% {
+          transform: translateY(0%);
+        }
+        100% {
+          transform: translateY(-100%);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- 🔥 LEFT ADS (5 SLOTS) -->
+    <div class="leftAd">
+      <div class="adStack" id="leftAds">
+        <img class="promoImg active" src="images/ad1.png" />
+        <img class="promoImg" src="images/photo (4).png" />
+        <!--Copy and Paste img tag for more ads-->
+      </div>
+    </div>
+
+    <!-- 🔥 RIGHT ADS (5 SLOTS) -->
+    <div class="rightAd">
+      <div class="adStack" id="rightAds">
+        <img class="promoImg active" src="images/ad2.png" />
+        <img class="promoImg" src="images/FinalOT.png" />
+        <!--Copy and Paste img tag for more ads-->
+      </div>
+    </div>
+
+    <!-- 🔥 MAIN WALL -->
+    <div class="wall">
+      <div class="mediaContainer" id="mediaContainer"></div>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js'
+      import {
+        getStorage,
+        ref,
+        listAll,
+        getDownloadURL,
+        getMetadata
+      } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js'
+
+      const firebaseConfig = {
+        apiKey: 'AIzaSyDUW4ZhyXFIqYtB7q-l-Ej_Pb_5tb2WZlw',
+        authDomain: 'digital-photo-booth.firebaseapp.com',
+        projectId: 'digital-photo-booth',
+        storageBucket: 'digital-photo-booth.firebasestorage.app',
+        messagingSenderId: '1058486104842',
+        appId: '1:1058486104842:web:601e48e0b9ccc71d9c40f3'
+      }
+
+      const app = initializeApp(firebaseConfig)
+      const storage = getStorage(app)
+
+      const container = document.getElementById('mediaContainer')
+
+      let mediaList = []
+
+      function isEventDay(uploadDate) {
+        const now = new Date()
+        const upload = new Date(uploadDate)
+
+        const resetHour = 4
+
+        let start = new Date()
+        start.setHours(resetHour, 0, 0, 0)
+
+        if (now.getHours() < resetHour) {
+          start.setDate(start.getDate() - 1)
+        }
+
+        let end = new Date(start)
+        end.setDate(end.getDate() + 1)
+
+        return upload >= start && upload < end
+      }
+
+      async function loadMedia() {
+        const listRef = ref(storage, 'livewall/')
+        const res = await listAll(listRef)
+
+        let newMedia = []
+
+        for (const item of res.items) {
+          const meta = await getMetadata(item)
+
+          if (isEventDay(meta.timeCreated)) {
+            const url = await getDownloadURL(item)
+
+            newMedia.push({
+              url,
+              time: new Date(meta.timeCreated),
+              type: meta.contentType
+            })
+          }
+        }
+
+        newMedia.sort((a, b) => b.time - a.time)
+
+        container.innerHTML = ''
+
+        newMedia.forEach(item => {
+          let element
+
+          if (item.type.includes('video')) {
+            element = document.createElement('video')
+            element.src = item.url
+            element.autoplay = true
+            element.loop = true
+            element.muted = true
+          } else {
+            element = document.createElement('img')
+            element.src = item.url
+          }
+
+          const wrapper = document.createElement('div')
+          wrapper.className = 'mediaItem'
+          wrapper.appendChild(element)
+
+          container.appendChild(wrapper)
+        })
+
+        container.innerHTML += container.innerHTML
+      }
+
+      setInterval(loadMedia, 5000)
+      loadMedia()
+
+      /* 🔥 AD SLIDESHOW SYSTEM */
+      const adInterval = 5000000 // 🔥 CHANGE TIME HERE (10 sec)
+
+      function startAdRotation(containerId) {
+        const ads = document.querySelectorAll(`#${containerId} .promoImg`)
+        let index = 0
+
+        setInterval(() => {
+          ads[index].classList.remove('active')
+
+          index = (index + 1) % ads.length
+
+          ads[index].classList.add('active')
+        }, adInterval)
+      }
+
+      startAdRotation('leftAds')
+      startAdRotation('rightAds')
+    </script>
+  </body>
+</html>

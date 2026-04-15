@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>Preview</title>
+
+    <style>
+      body {
+        margin: 0;
+        background: black;
+        font-family: Arial;
+        overflow: hidden;
+        color: white;
+      }
+
+      #filtersScreen {
+        position: absolute;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #filterPreview {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      #applyFilter {
+        position: absolute;
+        top: 60%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 14px 26px;
+        border: none;
+        border-radius: 14px;
+        background: #00c853;
+        color: white;
+        font-size: 16px;
+      }
+
+      #finalScreen {
+        position: absolute;
+        width: 100vw;
+        height: 100vh;
+        display: none;
+      }
+
+      canvas {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      #overlay {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        display: none;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        background: rgba(0, 0, 0, 0.35);
+        flex-direction: column;
+        font-size: 14px;
+      }
+
+      #downloadBtn {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        background: white;
+        border: none;
+        border-radius: 10px;
+        display: none;
+      }
+
+      #blockedScreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: black;
+        color: red;
+        display: none;
+        justify-content: center;
+        align-items: center;
+        font-size: 22px;
+        z-index: 9999;
+        text-align: center;
+        padding: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="filtersScreen">
+      <img id="filterPreview" />
+      <button id="applyFilter">Next</button>
+    </div>
+
+    <div id="finalScreen">
+      <canvas id="canvas"></canvas>
+
+      <div id="overlay">
+        <div id="message">
+          After Download<br />
+          Check Phone Files To See Saved Photo
+        </div>
+        <div id="countdown"></div>
+      </div>
+
+      <button id="downloadBtn">Download To Live Wall</button>
+    </div>
+
+    <div id="blockedScreen">
+      ⚠️ ACTION BLOCKED<br /><br />
+      Please complete your session
+    </div>
+
+    <script type="module">
+      /* ================================
+         🔐 TOKEN VERIFY (NEW)
+      ================================= */
+      async function verifyAccess() {
+        const params = new URLSearchParams(window.location.search)
+        const token = params.get('token')
+
+        if (!token) {
+          window.location.href = 'index.html'
+          return
+        }
+
+        try {
+          const res = await fetch(
+            `https://dpb-backend-dfc6.onrender.com/verify-token?token=${token}`
+          )
+          const data = await res.json()
+
+          if (!data.valid) {
+            window.location.href = 'index.html'
+          }
+
+          // store active session
+          sessionStorage.setItem('active_session', token)
+        } catch {
+          window.location.href = 'index.html'
+        }
+      }
+
+      await verifyAccess()
+
+      /* ================================
+         🔒 GLOBAL LOCK SYSTEM (NEW)
+      ================================= */
+      const blockedScreen = document.getElementById('blockedScreen')
+
+      function killSession() {
+        sessionStorage.clear()
+        localStorage.removeItem('photo')
+
+        history.pushState(null, null, location.href)
+
+        window.onpopstate = () => {
+          blockedScreen.style.display = 'flex'
+          history.pushState(null, null, location.href)
+        }
+
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') {
+            location.href = 'about:blank'
+          }
+        })
+
+        window.addEventListener('pageshow', e => {
+          if (e.persisted) {
+            location.href = 'about:blank'
+          }
+        })
+      }
+
+      /* 🔒 INITIAL BACK LOCK */
+      history.pushState(null, null, location.href)
+
+      window.addEventListener('popstate', () => {
+        blockedScreen.style.display = 'flex'
+        history.pushState(null, null, location.href)
+      })
+
+      window.addEventListener('pageshow', function (event) {
+        if (event.persisted) {
+          blockedScreen.style.display = 'flex'
+          location.reload()
+        }
+      })
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          setTimeout(() => {
+            location.reload()
+          }, 50)
+        }
+      })
+
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js'
+      import {
+        getStorage,
+        ref,
+        uploadBytes
+      } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js'
+
+      const firebaseConfig = {
+        apiKey: 'AIzaSyDUW4ZhyXFIqYtB7q-l-Ej_Pb_5tb2WZlw',
+        authDomain: 'digital-photo-booth.firebaseapp.com',
+        projectId: 'digital-photo-booth',
+        storageBucket: 'digital-photo-booth.firebasestorage.app',
+        messagingSenderId: '1058486104842',
+        appId: '1:1058486104842:web:601e48e0b9ccc71d9c40f3'
+      }
+
+      const app = initializeApp(firebaseConfig)
+      const storage = getStorage(app)
+
+      let baseImage = new Image()
+      let imageReady = false
+
+      const storedPhoto = localStorage.getItem('photo')
+
+      if (storedPhoto && storedPhoto.startsWith('data:image')) {
+        baseImage.onload = () => {
+          imageReady = true
+        }
+        baseImage.src = storedPhoto
+      }
+
+      const filters = [
+        './images/photo (10).png',
+        './images/photo (2).png',
+        'filter3.png',
+        'filter4.png',
+        'filter5.png'
+      ]
+
+      let filterIndex = 0
+      let startX = 0
+
+      const preview = document.getElementById('filterPreview')
+      const filterScreen = document.getElementById('filtersScreen')
+
+      function drawFilter() {
+        preview.src = filters[filterIndex]
+      }
+
+      window.onload = drawFilter
+
+      filterScreen.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX
+      })
+
+      filterScreen.addEventListener('touchend', e => {
+        let endX = e.changedTouches[0].clientX
+
+        if (endX < startX - 40) filterIndex = (filterIndex + 1) % filters.length
+        if (endX > startX + 40)
+          filterIndex = (filterIndex - 1 + filters.length) % filters.length
+
+        drawFilter()
+      })
+
+      const canvas = document.getElementById('canvas')
+      const ctx = canvas.getContext('2d')
+      const btn = document.getElementById('downloadBtn')
+      const overlayUI = document.getElementById('overlay')
+      const countdownEl = document.getElementById('countdown')
+      const messageEl = document.getElementById('message')
+
+      document.getElementById('applyFilter').onclick = () => {
+        if (!imageReady) return
+
+        filtersScreen.style.display = 'none'
+        finalScreen.style.display = 'block'
+
+        const filterImg = new Image()
+
+        filterImg.onload = () => {
+          canvas.width = 1080
+          canvas.height = 1920
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(baseImage, 0, 0, 1080, 1920)
+          ctx.drawImage(filterImg, 0, 0, 1080, 1920)
+
+          overlayUI.style.display = 'flex'
+          btn.style.display = 'block'
+        }
+
+        filterImg.src = filters[filterIndex]
+      }
+
+      btn.onclick = async () => {
+        btn.disabled = true
+        btn.innerText = 'Uploading...'
+
+        try {
+          const blob = await new Promise(resolve =>
+            canvas.toBlob(resolve, 'image/png')
+          )
+
+          const fileName = 'photo_' + Date.now() + '.png'
+          const storageRef = ref(storage, 'livewall/' + fileName)
+
+          uploadBytes(storageRef, blob)
+
+          const link = document.createElement('a')
+          link.href = URL.createObjectURL(blob)
+          link.download = fileName
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+
+          /* 🔥 ACTIVATE FULL LOCK + KILL */
+          killSession()
+
+          let timeLeft = 5
+          messageEl.innerText = 'Saved + Posted!'
+          countdownEl.innerText = `Closing in ${timeLeft}...`
+
+          const timer = setInterval(() => {
+            timeLeft--
+            countdownEl.innerText = `Closing in ${timeLeft}...`
+
+            if (timeLeft <= 0) {
+              clearInterval(timer)
+              window.location.href = 'about:blank'
+            }
+          }, 1000)
+        } catch (err) {
+          console.error(err)
+          btn.innerText = 'Error - Try Again'
+          btn.disabled = false
+        }
+      }
+    </script>
+  </body>
+</html>
