@@ -86,20 +86,27 @@
 
     <script>
       /* ================================
-         🔐 TOKEN SYNC (ADDED ONLY)
+         🔐 TOKEN SYNC + VERIFY (FIXED)
       ================================= */
       const params = new URLSearchParams(window.location.search)
-      let token = params.get('token')
-
-      if (token) {
-        sessionStorage.setItem('active_token', token)
-      } else {
-        token = sessionStorage.getItem('active_token')
-      }
+      let token = params.get('token') || sessionStorage.getItem('active_token')
 
       if (!token) {
         window.location.href = 'index.html'
       }
+
+      sessionStorage.setItem('active_token', token)
+
+      // 🔥 NON-BLOCKING VERIFY
+      fetch(`https://dpb-backend-dfc6.onrender.com/verify-token?token=${token}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.valid) window.location.href = 'index.html'
+        })
+
+      /* ================================
+         ORIGINAL EDITOR CODE (UNCHANGED)
+      ================================= */
 
       let img = new Image()
       let hasImage = false
@@ -128,9 +135,7 @@
       if (storedPhoto && storedPhoto.startsWith('data:image')) {
         img.onload = () => {
           hasImage = true
-
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-
           originalPixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
         }
 
@@ -204,7 +209,7 @@
         const editedPhoto = canvas.toDataURL('image/png')
         localStorage.setItem('photo', editedPhoto)
 
-        // 🔥 TOKEN PASSED TO PREVIEW
+        // 🔥 FIXED TOKEN PASS
         window.location.href = `preview.html?token=${token}`
       }
 
